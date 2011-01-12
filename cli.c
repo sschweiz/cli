@@ -184,17 +184,20 @@ void cli_cmd_add(cli_ctx *ctx)
    memcpy(iface->devname, fname, 6);
    
    if ((i = find_free_if_spot(ctx)) < CLI_DEFAULT_BUFFER) {
-      sprintf(tmp, "%s/%08x/if%d-offset", ctx->pwd, ctx->pid, i);
+      sprintf(tmp, "%s/%08x/if%02x-offset", ctx->pwd, ctx->pid, i);
       iface->offset = fopen(tmp, "wb+");
+      // eventually, we will need to make sure that these are unique  in the
+      // event we allow moving of ifaces (at present however I don't see a need
+      // for this and it adds extra unncessary complexity)
       iface->id = i;
-     iface->link = (void *)iface;
+      iface->link = (void *)iface;
 
       fwrite(iface, 1, sizeof(cli_if), iface->offset);
       // write initial offset
       iface->rx_offsetpos = 0;
       fwrite(&iface->rx_offsetpos, 1, sizeof(unsigned int), iface->offset);
 
-      sprintf(tmp, "%s/%08x/if%d-buffer", ctx->pwd, ctx->pid, i);
+      sprintf(tmp, "%s/%08x/if%02x-buffer", ctx->pwd, ctx->pid, i);
       iface->buffer = fopen(tmp, "ab+");
 
       // aquire mutex
@@ -596,6 +599,7 @@ void cli_ctx_init(cli_ctx *ctx)
 
    ctx->uid = geteuid();
    ctx->pw = getpwuid(ctx->uid);
+   ctx->version = CLI_VERSION;
    
    // create directories
    memset(ctx->pwd, 0, CLI_DEFAULT_BUFFER);
@@ -723,6 +727,122 @@ void cli_cmd_session(cli_ctx *ctx)
    printw("  sessionid: 0x%08x\n", ctx->pid);
 }
 
+void cli_ctx_free_ifaces(cli_ctx *ctx)
+{
+   int i;
+   
+   for (i = 0; i < CLI_DEFAULT_BUFFER; i++) {
+      if (ctx->ifs[i] != NULL) {
+         if (ctx->ifs[i]->header == 'i') {
+            ctx->ifs[i]->active = 0;
+            fclose(ctx->ifs[i]->offset);
+            fclose(ctx->ifs[i]->buffer);
+
+            if (ctx->ifs[i]->rxopen) {
+               switch (ctx->ifs[i]->type) {
+               case CLI_TYPE_FILE:
+                  fclose(ctx->ifs[i]->rxdev.fp);
+                  break;
+               default: break;
+               }
+            }
+         }
+         
+         free(ctx->ifs[i]);
+         ctx->ifs[i] = NULL;
+      }
+   }
+}
+
+void cli_ctx_reload(cli_ctx *ctx, const char *ctxfile)
+{
+   char tmp[CLI_DEFAULT_BUFFER];
+   int tf;
+   DIR *dir;
+   struct dirent *dp;
+   cli_if *iface;
+   int i = 0;
+
+   memset(tmp, 0, CLI_DEFAULT_BUFFER);
+   sprintf(tmp, "%s/%08x", ctx->pwd, ctx->pid);
+
+   // clear ifaces
+   printw("freeing old interfaces... "); refresh();
+   cli_ctx_free_ifaces(ctx);
+   printw("done.\n"); refresh();
+   
+   printf("reloading interfaces from filesystem... "); refresh();
+   dir = opendir(tmp);
+   while ((dp = readdir(dir)) != NULL) {
+      if (dp->d_name[0] != '.') {
+         cli_ctx_reload_iface(ctx, dp->d_name);
+      }
+   }
+   closedir(dir);
+   printw("done.\n"); refresh();
+   
+   printw("restoring settings... "); refresh();
+   for (i = 0; i < CLI_DEFAULT_BUFFER; i++) {
+      iface = ctx->ifs[i];
+      if (iface != NULL) {
+         printw("  restoring %d\n", i);
+         ctx->ifsel = i;
+         sprintf(tmp, "%s/%08x/if%02x-offset", ctx->pwd, ctx->pid, i);
+         iface->offset = fopen(tmp, "wb+");
+         fseek(iface->offset, 0, SEEK_END);
+         
+         iface->id = i;
+         iface->link = (void *)iface;
+
+         sprintf(tmp, "%s/%08x/if%02x-buffer", ctx->pwd, ctx->pid, i);
+         iface->buffer = fopen(tmp, "ab+");
+
+         switch (iface->type) {
+         case CLI_TYPE_TCP:
+   			tf = socket(AF_INET, SOCK_DGRAM, 0);
+	   		if (tf >= 0) {
+	   			iface->rxdev.fd = tf;
+               iface->rxopen = 1;
+			   }
+            break;
+         default: break;
+         }
+      }
+   }
+   printw("done.\n"); refresh();
+}
+
+void cli_ctx_reload_iface(cli_ctx *ctx, const char *ifacefile)
+{
+   int x;
+   FILE *fp;
+   cli_if *iface;
+   char tmp[CLI_DEFAULT_BUFFER];
+   
+   memset(tmp, 0, CLI_DEFAULT_BUFFER);
+
+   if (sscanf(ifacefile, "if%02x-%s", &x, tmp) == 2) {
+      if ((x >= 0) && (x < CLI_DEFAULT_BUFFER) &&
+          (tmp[0] != 'b')) {
+         iface = ctx->ifs[x];
+         if (iface == NULL) { iface = (cli_if *)malloc(sizeof(cli_if)); }
+
+         sprintf(tmp, "%s/%08x/%s", ctx->pwd, ctx->pid, ifacefile);
+         fp = fopen(tmp, "rb");
+         rewind(fp);
+         fread(iface, 1, sizeof(cli_if), fp);
+         iface->rx = 0;
+         iface->active = 0;
+
+         ctx->ifs[x] = iface;
+      } else if (tmp[0] == 'b') { // nothing
+      } else {
+         // TODO:
+         printw("Error: interface file out-of-bounds at %d.\n", x);
+      }
+   }
+}
+
 int cli_stripchars(cli_ctx *ctx)
 {
    int i, j = 0;
@@ -750,6 +870,39 @@ void cli_cmd_cwd(cli_ctx *ctx)
    printw("%s\n", tmp);
 }
 
+void cli_cmd_save(cli_ctx *ctx)
+{
+   char buf[13];
+   
+   cli_write_ctx(ctx);
+   fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_SET);
+   fwrite(ctx->ifs[ctx->ifsel], 1,
+      sizeof(cli_if), ctx->ifs[ctx->ifsel]->offset);
+   fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_END);
+
+   memset(buf, 0, 13);
+   sprintf(buf, "%08x.tgz", ctx->pid);
+#ifdef _USE_LIBARCHIVE
+   cli_archive_write(ctx, buf);
+#endif
+}
+
+void cli_cmd_load(cli_ctx *ctx)
+{
+   char tmp[CLI_DEFAULT_BUFFER];
+   int pos = 4;
+
+   // eventually, we want to check if the input filename is found, and if it
+   // is not, we should check whether a session existed by that name and restore
+   // that session.  But for now, just list the contents of the tar
+   memset(tmp, 0, CLI_DEFAULT_BUFFER);
+   if (sscanf(ctx->buffer + pos, "%s", tmp) > 0) {
+      cli_archive_read(ctx, tmp);
+   } else {
+      printw("Error: `load' command must specify session or filename.\n");
+   }
+}
+
 int cli_interpret(cli_ctx *ctx)
 {
    int pos = 0;
@@ -773,18 +926,9 @@ int cli_interpret(cli_ctx *ctx)
       clear();
       refresh();
    } else if (strncmp(ctx->buffer, "save", 4) == 0) {
-      cli_write_ctx(ctx);
-      fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_SET);
-      fwrite(ctx->ifs[ctx->ifsel], 1,
-         sizeof(cli_if), ctx->ifs[ctx->ifsel]->offset);
-      fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_END);
-
-      char buf[13];
-      memset(buf, 0, 13);
-      sprintf(buf, "%08x.tgz", ctx->pid);
-#ifdef _USE_LIBARCHIVE
-      cli_archive_write(ctx, buf);
-#endif
+      cli_cmd_save(ctx);
+   } else if (strncmp(ctx->buffer, "load", 4) == 0) {
+      cli_cmd_load(ctx);
    } else if (strncmp(ctx->buffer, "cwd", 3) == 0) {
       cli_cmd_cwd(ctx);
    } else if (strncmp(ctx->buffer, "history", 7) == 0) {
@@ -935,31 +1079,13 @@ void cli_readcmd(cli_ctx *ctx)
 
 void cli_ctx_exit(cli_ctx *ctx)
 {
-   int i;
    char tmp[CLI_DEFAULT_BUFFER];
-
    memset(tmp, 0, CLI_DEFAULT_BUFFER);
 
    refresh();
    cli_ui_exit(&ctx->ui);
 
-   for (i = 0; i < CLI_DEFAULT_BUFFER; i++) {
-      if (ctx->ifs[i] != NULL) {
-         if (ctx->ifs[i]->header == 'i') {
-            fclose(ctx->ifs[i]->offset);
-            fclose(ctx->ifs[i]->buffer);
-
-            switch (ctx->ifs[i]->type) {
-            case CLI_TYPE_FILE:
-               fclose(ctx->ifs[i]->rxdev.fp);
-               break;
-            default: break;
-            }
-         }
-         
-         free(ctx->ifs[i]);
-      }
-   }
+   cli_ctx_free_ifaces(ctx);
 
    pthread_mutex_destroy(&ctx->mutex);
    pthread_cancel(ctx->thread);

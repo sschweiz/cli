@@ -22,10 +22,11 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 			iface->sock.sin_port = htons((short)80);
 			tmp = socket(AF_INET, SOCK_STREAM, 0);
 			if (tmp < 0) {
-				cli_print_error("if set type");
+				cli_print_error("if set type: ");
 				iface->active = 0;
 			} else {
 				iface->rxdev.fd = tmp;
+            iface->rxopen = 1;
 			}
 			iface->type = CLI_TYPE_TCP;
 		} else if (strncmp(value, "udp", 3) == 0) {
@@ -35,10 +36,11 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 			iface->sock.sin_port = htons((short)80);
 			tmp = socket(AF_INET, SOCK_DGRAM, 0);
 			if (tmp < 0) {
-				cli_print_error("if set type");
+				cli_print_error("if set type: ");
 				iface->active = 0;
 			} else {
 				iface->rxdev.fd = tmp;
+            iface->rxopen = 1;
 			}
 			iface->type = CLI_TYPE_UDP;
 		} else if ((strncmp(value, "mem", 3) == 0) ||

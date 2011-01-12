@@ -7,6 +7,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+// 8 bits major, 8 bits minor, 16 bits build
+#define CLI_VERSION  0x00010002
+
 #define CLI_EXITING 0
 #define CLI_NORMAL  1
 
@@ -76,6 +79,7 @@ typedef struct __cli_if
 		int fd;
 		void *ptr;
 	} rxdev;
+   unsigned int rxopen;
 
 	union {
 		struct sockaddr_in sock;
@@ -122,6 +126,8 @@ typedef struct __cli_ctx
 	unsigned int flags;
 	char buffer[CLI_MAX_BUFFER];
 	char cmd[CLI_MAX_BUFFER];
+
+   unsigned long version;
 
 	unsigned int pid;
 	uid_t uid;

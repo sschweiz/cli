@@ -32,4 +32,6 @@ void *cli_rx_interrupt(void *pvctx);
 void cli_if_rx(cli_ctx *ctx, const char *buffer);
 void cli_if_tx(cli_ctx *ctx, cli_if *iface, char *buffer);
 
+void cli_ctx_reload(cli_ctx *ctx, const char *ctxfile);
+void cli_ctx_reload_iface(cli_ctx *ctx, const char *ifacefile);
 
