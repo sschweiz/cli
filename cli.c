@@ -968,6 +968,11 @@ int cli_interpret(cli_ctx *ctx)
       ctx->flags ^= CLI_FLAG_CAT;
    } else if (strncmp(ctx->buffer, "rx", 2) == 0) {
       cli_cmd_rx(ctx);
+   } else if (strncmp(ctx->buffer, "tx:", 3) == 0) {
+      pos += 3;
+      memset(ctx->cmd, 0, CLI_MAX_BUFFER);
+      memcpy(ctx->cmd, ctx->buffer + pos, CLI_MAX_BUFFER - pos);
+      cli_cmd_tx(ctx);
    } else if (strncmp(ctx->buffer, "tx", 2) == 0) {
       pos += 2;
       while ((ctx->buffer[pos]) && (ctx->buffer[pos] == ' ')) { pos++; }
