@@ -19,6 +19,8 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include "config.h"
+
 #include "clibase.h"
 #include "cliui.h"
 #include "cli.h"
@@ -882,7 +884,7 @@ void cli_cmd_save(cli_ctx *ctx)
 
    memset(buf, 0, 13);
    sprintf(buf, "%08x.tgz", ctx->pid);
-#ifdef _USE_LIBARCHIVE
+#ifdef HAVE_LIBARCHIVE
    cli_archive_write(ctx, buf);
 #endif
 }
@@ -897,7 +899,9 @@ void cli_cmd_load(cli_ctx *ctx)
    // that session.  But for now, just list the contents of the tar
    memset(tmp, 0, CLI_DEFAULT_BUFFER);
    if (sscanf(ctx->buffer + pos, "%s", tmp) > 0) {
+#ifdef HAVE_LIBARCHIVE
       cli_archive_read(ctx, tmp);
+#endif
    } else {
       printw("Error: `load' command must specify session or filename.\n");
    }

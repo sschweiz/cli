@@ -8,10 +8,11 @@
 
 #include "cli.h"
 #include "clibase.h"
+#include "config.h"
 
 #include <curses.h>
 
-#if _USE_LIBARCHIVE
+#if HAVE_LIBARCHIVE
 #include <archive.h>
 #include <archive_entry.h>
 

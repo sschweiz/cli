@@ -1,8 +1,9 @@
 #pragma once
 
+#include "config.h"
 #include "clibase.h"
 
-#ifdef _USE_LIBARCHIVE
+#ifdef HAVE_LIBARCHIVE
 #include <archive.h>
 #include <archive_entry.h>
 
