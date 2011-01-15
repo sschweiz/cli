@@ -27,6 +27,10 @@ void cli_cmd_ls(cli_ctx *ctx);
 void cli_cmd_session(cli_ctx *ctx);
 void cli_cmd_cwd(cli_ctx *ctx);
 void cli_cmd_history(cli_ctx *ctx);
+void cli_cmd_save(cli_ctx *ctx);
+void cli_cmd_load(cli_ctx *ctx);
+void cli_cmd_rx(cli_ctx *ctx);
+void cli_cmd_flush(cli_ctx *ctx);
 
 void cli_cmd_if_set(cli_ctx *ctx);
 void cli_cmd_if_set_type(cli_ctx *ctx, const char *value);

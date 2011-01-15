@@ -19,7 +19,7 @@
 
 #define CLI_FLAG_ECHO	0x01
 #define CLI_FLAG_ASYNC	0x02
-#define CLI_FLAG_CAT	0x04
+#define CLI_FLAG_SILENT 0x04
 #define CLI_FLAG_ALF	0x08
 #define CLI_FLAG_ACR	0x10
 #define CLI_FLAG_AS		0x20 
