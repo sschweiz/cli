@@ -79,7 +79,7 @@ typedef struct __cli_if
 		int fd;
 		void *ptr;
 	} rxdev;
-   unsigned int rxopen;
+	unsigned int rxopen;
 
 	union {
 		struct sockaddr_in sock;
@@ -127,7 +127,7 @@ typedef struct __cli_ctx
 	char buffer[CLI_MAX_BUFFER];
 	char cmd[CLI_MAX_BUFFER];
 
-   unsigned long version;
+	unsigned long version;
 
 	unsigned int pid;
 	uid_t uid;

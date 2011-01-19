@@ -272,14 +272,13 @@ void cli_handle_rx(cli_ctx *ctx, cli_if *iface, char *buffer)
 		refresh();
 	}
 	
-	// update tie lines
-	for (i = 0; i < CLI_DEFAULT_BUFFER; i++) {
-		if ((ctx->ifs[i] != NULL) && (ctx->ifs[i]->header == 't')) {
-			cli_tie *t = (cli_tie *)ctx->ifs[i];
-			
-			if (t->tx == iface) {
-				cli_if_tx(ctx, t->rx, buffer);
-			}
+	// update tie line (if we have one selected and it applies to us)
+	i = ctx->ifsel;
+	if ((ctx->ifs[i] != NULL) && (ctx->ifs[i]->header == 't')) {
+		cli_tie *t = (cli_tie *)ctx->ifs[i];
+
+		if (t->tx == iface) {
+			cli_if_tx(ctx, t->rx, buffer);
 		}
 	}
 }
@@ -392,6 +391,8 @@ void cli_cmd_rx(cli_ctx *ctx)
 	static char rx_buffer[CLI_MAX_BUFFER];
 	
 	if (iface != NULL) {
+		if (iface->header == 't') { iface = ((cli_tie *)iface)->rx; }
+
 		if (ctx->buffer[pos] == '?') {
 			printw("  %d / %d  %d byte(s)\n",
 				iface->rx,
@@ -467,6 +468,8 @@ void cli_cmd_tx(cli_ctx *ctx)
 	cli_if *iface = ctx->ifs[ctx->ifsel];
 
 	if (iface != NULL) {
+		if (iface->header == 't') { iface = ((cli_tie *)iface)->tx; }
+
 		cli_if_tx(ctx, iface, ctx->cmd);
 	}
 }

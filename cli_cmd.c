@@ -26,7 +26,7 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 				iface->active = 0;
 			} else {
 				iface->rxdev.fd = tmp;
-            iface->rxopen = 1;
+				iface->rxopen = 1;
 			}
 			iface->type = CLI_TYPE_TCP;
 		} else if (strncmp(value, "udp", 3) == 0) {
@@ -40,11 +40,11 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 				iface->active = 0;
 			} else {
 				iface->rxdev.fd = tmp;
-            iface->rxopen = 1;
+				iface->rxopen = 1;
 			}
 			iface->type = CLI_TYPE_UDP;
 		} else if ((strncmp(value, "mem", 3) == 0) ||
-				   (strncmp(value, "memory", 6) == 0)) {
+					(strncmp(value, "memory", 6) == 0)) {
 			iface->type = CLI_TYPE_MEMORY;
 			iface->rxdev.ptr = NULL;
 			iface->active = 0;
@@ -54,7 +54,7 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 			sprintf(iface->devname, "stdout");
 			iface->rxdev.fp = stdout;
 		} else if ((strncmp(value, "bin", 3) == 0) ||
-				   (strncmp(value, "exec", 4) == 0)) {
+					(strncmp(value, "exec", 4) == 0)) {
 			iface->type = CLI_TYPE_EXEC;
 			memset(iface->devname, 0, CLI_DEFAULT_BUFFER);
 			sprintf(iface->devname, "/usr/bin/cat");
@@ -72,14 +72,14 @@ void cli_cmd_if_set_type(cli_ctx *ctx, const char *value)
 
 void cli_cmd_if_set_buffersize(cli_ctx *ctx, const char *value)
 {
-   int i;
+	int i;
 	cli_if *iface = ctx->ifs[ctx->ifsel];
 
 	if (iface != NULL) {
 		i = atoi(value);
-      if (i < CLI_MIN_BUFFER) i = CLI_DEFAULT_BUFFER;
-      iface->buffer_size = i;
-   }
+		if (i < CLI_MIN_BUFFER) i = CLI_DEFAULT_BUFFER;
+		iface->buffer_size = i;
+	}
 }
 
 void cli_cmd_if_set_ipaddr(cli_ctx *ctx, const char *value)
@@ -136,18 +136,18 @@ void cli_cmd_if_set_xmode(cli_if_mode *mode, const char *value)
 	 	(value[0] == 'z')) {
 		*mode = CLI_MODE_Z;
 	} else if ((strncmp(value, "pt", 2) == 0) ||
-			   (strncmp(value, "plaintext", 9) == 0) ||
-			   (strncmp(value, "ascii", 5) == 0) ||
-			   (value[0] == 'a')) {
+				(strncmp(value, "plaintext", 9) == 0) ||
+				(strncmp(value, "ascii", 5) == 0) ||
+				(value[0] == 'a')) {
 		*mode = CLI_MODE_PLAINTEXT;
 	} else if ((strncmp(value, "hex", 3) == 0) ||
-			   (value[0] == 'h') ||
-			   (value[0] == 'x')) {
+				(value[0] == 'h') ||
+				(value[0] == 'x')) {
 		*mode = CLI_MODE_HEX;
-   } else if ((strncmp(value, "binary", 6) == 0) ||
-              (value[0] == 'b')) {
+	} else if ((strncmp(value, "binary", 6) == 0) ||
+				  (value[0] == 'b')) {
 		*mode = CLI_MODE_BINARY;
-   }
+	}
 }
 
 void cli_cmd_if_set(cli_ctx *ctx)
@@ -198,18 +198,18 @@ void cli_cmd_if_set(cli_ctx *ctx)
 			(ctx->ifs[ctx->ifsel]->type & CLI_DEVNAME_TYPES)) {
 			cli_cmd_if_set_devname(ctx, val);
 		} else if ((strncmp(var, "ipaddr", 6) == 0) &&
-				   (ctx->ifs[ctx->ifsel]->type & CLI_IP_TYPES)) {
+					(ctx->ifs[ctx->ifsel]->type & CLI_IP_TYPES)) {
 			cli_cmd_if_set_ipaddr(ctx, val);
 		} else if ((strncmp(var, "ipport", 6) == 0) &&
-				   (ctx->ifs[ctx->ifsel]->type & CLI_IP_TYPES)) {
+					(ctx->ifs[ctx->ifsel]->type & CLI_IP_TYPES)) {
 			cli_cmd_if_set_ipport(ctx, val);
 		} else if ((strncmp(var, "addr", 4) == 0) &&
-				   (ctx->ifs[ctx->ifsel]->type == CLI_TYPE_MEMORY)) {
+					(ctx->ifs[ctx->ifsel]->type == CLI_TYPE_MEMORY)) {
 			//cli_cmd_if_set_addr(ctx, val);
 		} else if (strncmp(var, "type", 4) == 0) {
 			cli_cmd_if_set_type(ctx, val);
 		} else if (strncmp(var, "buffer", 6) == 0) {
-         cli_cmd_if_set_buffersize(ctx, val);
+			cli_cmd_if_set_buffersize(ctx, val);
 		} else if (strncmp(var, "rxmode", 6) == 0) {
 			cli_cmd_if_set_xmode(&ctx->ifs[ctx->ifsel]->rxmode, val);
 		} else if (strncmp(var, "txmode", 6) == 0) {
@@ -219,36 +219,36 @@ void cli_cmd_if_set(cli_ctx *ctx)
 		}
 	}
 	
-   fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_SET);
-   fwrite(ctx->ifs[ctx->ifsel], 1,
-      sizeof(cli_if), ctx->ifs[ctx->ifsel]->offset);
-   fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_END);
+	fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_SET);
+	fwrite(ctx->ifs[ctx->ifsel], 1,
+		sizeof(cli_if), ctx->ifs[ctx->ifsel]->offset);
+	fseek(ctx->ifs[ctx->ifsel]->offset, 0, SEEK_END);
 }
 
 /**
-   static struct cli_options opts[] = {
-      {"add", cli_cmd_add, 0, "add"},
-      {"a", cli_cmd_add, 1, "add"},
-      ...
-      {0, 0, 0, 0}
-   }
+	static struct cli_options opts[] = {
+		{"add", cli_cmd_add, 0, "add"},
+		{"a", cli_cmd_add, 1, "add"},
+		...
+		{0, 0, 0, 0}
+	}
  */
 int cli_command(cli_ctx *ctx, const struct cli_option *opts)
 {
-   int i = 0, ret = 0;
-   int len;
+	int i = 0, ret = 0;
+	int len;
 
-   while (opts[i].name != 0) {
-      len = strlen(opts[i].name);
-      if (strncmp(ctx->buffer, opts[i].name, len) == 0) {
-         opts[i].func(ctx);
-         ret = 1;
-         break;
-      }
+	while (opts[i].name != 0) {
+		len = strlen(opts[i].name);
+		if (strncmp(ctx->buffer, opts[i].name, len) == 0) {
+			opts[i].func(ctx);
+			ret = 1;
+			break;
+		}
 
-      i++;
-   }
+		i++;
+	}
 
-   return ret;
+	return ret;
 }
 
