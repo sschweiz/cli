@@ -1,3 +1,12 @@
+/*
+ * cli.c - main functions and control routines for cli
+ * (C) 2010-2011 Stephen Schweizer <schweizer@alumni.cmu.edu>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -213,21 +222,27 @@ void cli_cmd_add(cli_ctx *ctx)
 	}
 }
 
+void cli_cmd_ex(cli_ctx *ctx)
+{
+	cli_line tie;
+	tie.header = 'e';
+}
+
 void cli_cmd_tie(cli_ctx *ctx)
 {
 	int i, pos = 0;
 	
 	pos += 3;
 
-	cli_tie tie;
+	cli_line tie;
 	tie.header = 't';
 
 	if (sscanf(ctx->buffer + pos, "%d %d", &tie.txi, &tie.rxi) < 2) {
 		printw("Error: malformed `tie' command.\n");
 	} else {
 		if ((ctx->ifs[tie.txi] != NULL) &&
-			 (ctx->ifs[tie.rxi] != NULL) &&
-			 (tie.rxi != tie.txi)) {
+			(ctx->ifs[tie.rxi] != NULL) &&
+			(tie.rxi != tie.txi)) {
 			tie.rx = ctx->ifs[tie.rxi];
 			tie.tx = ctx->ifs[tie.txi];
 			
@@ -235,7 +250,7 @@ void cli_cmd_tie(cli_ctx *ctx)
 
 			if ((i = find_free_if_spot(ctx)) < CLI_DEFAULT_BUFFER) {
 				memset(iface, 0, sizeof(cli_if));
-				memcpy(iface, &tie, sizeof(cli_tie));
+				memcpy(iface, &tie, sizeof(cli_line));
 
 				// aquire mutex
 				pthread_mutex_lock(&ctx->mutex);
@@ -272,13 +287,13 @@ void cli_handle_rx(cli_ctx *ctx, cli_if *iface, char *buffer)
 		refresh();
 	}
 	
-	// update tie line (if we have one selected and it applies to us)
+	// update exchange line (if we have one selected and it applies to us)
 	i = ctx->ifsel;
-	if ((ctx->ifs[i] != NULL) && (ctx->ifs[i]->header == 't')) {
-		cli_tie *t = (cli_tie *)ctx->ifs[i];
+	if ((ctx->ifs[i] != NULL) && (ctx->ifs[i]->header == 'e')) {
+		cli_line *t = (cli_line *)ctx->ifs[i];
 
-		if (t->tx == iface) {
-			cli_if_tx(ctx, t->rx, buffer);
+		if (t->rx == iface) {
+			cli_if_tx(ctx, t->tx, buffer);
 		}
 	}
 }
@@ -391,7 +406,7 @@ void cli_cmd_rx(cli_ctx *ctx)
 	static char rx_buffer[CLI_MAX_BUFFER];
 	
 	if (iface != NULL) {
-		if (iface->header == 't') { iface = ((cli_tie *)iface)->rx; }
+		if (iface->header == 't') { iface = ((cli_line *)iface)->rx; }
 
 		if (ctx->buffer[pos] == '?') {
 			printw("  %d / %d  %d byte(s)\n",
@@ -468,7 +483,7 @@ void cli_cmd_tx(cli_ctx *ctx)
 	cli_if *iface = ctx->ifs[ctx->ifsel];
 
 	if (iface != NULL) {
-		if (iface->header == 't') { iface = ((cli_tie *)iface)->tx; }
+		if (iface->header == 't') { iface = ((cli_line *)iface)->tx; }
 
 		cli_if_tx(ctx, iface, ctx->cmd);
 	}
@@ -662,11 +677,11 @@ void cli_cmd_ls(cli_ctx *ctx)
 	
 	for (i = 0; i < CLI_DEFAULT_BUFFER; i++) {
 		if (ctx->ifs[i] != NULL) {
+			if (i == ctx->ifsel) { printw("*"); } else { printw(" "); }
 			if (ctx->ifs[i]->header == 'i') {
-				if (i == ctx->ifsel) { printw("*"); } else { printw(" "); }
 				if (ctx->ifs[i]->active) { printw(" "); } else { printw("#"); }
 				printw("%02x", ctx->ifs[i]->flags);
-				printw(" % 3d  if ", i);
+				printw(" % 3d  if  ", i);
 				cli_print_typel(ctx->ifs[i]->type);
 				printw(" m:");
 				cli_print_mode(ctx->ifs[i]->rxmode);
@@ -688,10 +703,16 @@ void cli_cmd_ls(cli_ctx *ctx)
 					printw("  %s\n", ctx->ifs[i]->devname);
 					break;
 				}
+			} else if (ctx->ifs[i]->header == 't') {
+				cli_line *t = (cli_line *)ctx->ifs[i];
+				printw("  % 3d  tie %d -> %d\n", i, t->txi, t->rxi);
+			} else if (ctx->ifs[i]->header == 'e') {
+				cli_line *t = (cli_line *)ctx->ifs[i];
+				printw("  % 3d  ex  %d -> %d\n", i, t->txi, t->rxi);
+			} else if (ctx->ifs[i]->header == 'm') {
+				printw("  % 3d  mul\n");
 			} else {
-				cli_tie *t = (cli_tie *)ctx->ifs[i];
-				if (i == ctx->ifsel) { printw("*"); } else { printw(" "); }
-				printw("  % 3d  t  %d -> %d\n", i, t->txi, t->rxi);
+				printw("  % 3d  ??\n");
 			}
 		}
 	}
@@ -940,6 +961,7 @@ int cli_interpret(cli_ctx *ctx)
 		{"cwd", cli_cmd_cwd, 0, "cwd"},
 		{"history", cli_cmd_history, 0, "history"},
 		{"tie", cli_cmd_tie, CLI_CMD_UPDATE_CTX, "tie"},
+		{"ex", cli_cmd_ex, CLI_CMD_UPDATE_CTX, "ex"},
 		{"sess", cli_cmd_session, 0, "session"},
 		{"rx", cli_cmd_rx, 0, "rx"},
 		{"flush", cli_cmd_flush, 0, "flush"},

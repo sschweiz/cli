@@ -87,14 +87,14 @@ typedef struct __cli_if
 	};
 } cli_if;
 
-typedef struct __cli_tie
+typedef struct __cli_line
 {
 	char header;
 	int id;
 	
 	cli_if *tx, *rx;
 	unsigned int txi, rxi;
-} cli_tie;
+} cli_line;
 
 struct input_key {
 	char val;
