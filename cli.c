@@ -53,7 +53,7 @@ void cli_print_type(cli_if_type type)
 	case CLI_TYPE_UDP: printw("udp"); break;
 	case CLI_TYPE_EXEC: printw("bin"); break;
 	case CLI_TYPE_MEMORY: printw("mem"); break;
-	case CLI_TYPE_FILE: printw("fp"); break;
+	case CLI_TYPE_FILE: printw("fp "); break;
 	case CLI_TYPE_SERIAL: printw("ser"); break;
 	default: printw("gen"); break;
 	}
@@ -62,12 +62,12 @@ void cli_print_type(cli_if_type type)
 void cli_print_typel(cli_if_type type)
 {
 	switch (type) {
-	case CLI_TYPE_TCP: printw("tcp	"); break;
-	case CLI_TYPE_UDP: printw("udp	"); break;
-	case CLI_TYPE_EXEC: printw("binary"); break;
-	case CLI_TYPE_MEMORY: printw("memory"); break;
-	case CLI_TYPE_FILE: printw("file  "); break;
-	case CLI_TYPE_SERIAL: printw("serial"); break;
+	case CLI_TYPE_TCP: printw("tcp    "); break;
+	case CLI_TYPE_UDP: printw("udp	   "); break;
+	case CLI_TYPE_EXEC: printw("binary "); break;
+	case CLI_TYPE_MEMORY: printw("memory "); break;
+	case CLI_TYPE_FILE: printw("file   "); break;
+	case CLI_TYPE_SERIAL: printw("serial "); break;
 	default: printw("generic"); break;
 	}
 }
@@ -222,17 +222,56 @@ void cli_cmd_add(cli_ctx *ctx)
 	}
 }
 
+int cli_add_line(cli_ctx *ctx, cli_line *l)
+{
+	int i, ret = 0;
+
+	if ((ctx->ifs[l->txi] != NULL) &&
+		(ctx->ifs[l->rxi] != NULL) &&
+		(l->rxi != l->txi)) {
+		l->rx = ctx->ifs[l->rxi];
+		l->tx = ctx->ifs[l->txi];
+			
+		cli_if *iface = (cli_if *)malloc(sizeof(cli_if));
+
+		if ((i = find_free_if_spot(ctx)) < CLI_DEFAULT_BUFFER) {
+			memset(iface, 0, sizeof(cli_if));
+			memcpy(iface, l, sizeof(cli_line));
+
+			// aquire mutex
+			pthread_mutex_lock(&ctx->mutex);
+			ctx->ifs[i] = iface;
+			// release mutex
+			pthread_mutex_unlock(&ctx->mutex);
+			
+			ret = 1;
+		} else {
+			free(iface);
+		}
+	}
+	
+	return ret;
+}
+
 void cli_cmd_ex(cli_ctx *ctx)
 {
+	int pos = 2;
+	
 	cli_line tie;
 	tie.header = 'e';
+	
+	if (sscanf(ctx->buffer + pos, "%d %d", &tie.txi, &tie.rxi) < 2) {
+		printw("Error: malformed `ex' command.\n");
+	} else {
+		if (cli_add_line(ctx, &tie) == 0) {
+			printw("Error: `ex' command must specify valid rx and tx interfaces.\n");
+		}
+	}
 }
 
 void cli_cmd_tie(cli_ctx *ctx)
 {
-	int i, pos = 0;
-	
-	pos += 3;
+	int pos = 3;
 
 	cli_line tie;
 	tie.header = 't';
@@ -240,27 +279,7 @@ void cli_cmd_tie(cli_ctx *ctx)
 	if (sscanf(ctx->buffer + pos, "%d %d", &tie.txi, &tie.rxi) < 2) {
 		printw("Error: malformed `tie' command.\n");
 	} else {
-		if ((ctx->ifs[tie.txi] != NULL) &&
-			(ctx->ifs[tie.rxi] != NULL) &&
-			(tie.rxi != tie.txi)) {
-			tie.rx = ctx->ifs[tie.rxi];
-			tie.tx = ctx->ifs[tie.txi];
-			
-			cli_if *iface = (cli_if *)malloc(sizeof(cli_if));
-
-			if ((i = find_free_if_spot(ctx)) < CLI_DEFAULT_BUFFER) {
-				memset(iface, 0, sizeof(cli_if));
-				memcpy(iface, &tie, sizeof(cli_line));
-
-				// aquire mutex
-				pthread_mutex_lock(&ctx->mutex);
-				ctx->ifs[i] = iface;
-				// release mutex
-				pthread_mutex_unlock(&ctx->mutex);
-			} else {
-				free(iface);
-			}
-		} else {
+		if (cli_add_line(ctx, &tie) == 0) {
 			printw("Error: `tie' command must specify valid rx and tx interfaces.\n");
 		}
 	}
@@ -705,14 +724,14 @@ void cli_cmd_ls(cli_ctx *ctx)
 				}
 			} else if (ctx->ifs[i]->header == 't') {
 				cli_line *t = (cli_line *)ctx->ifs[i];
-				printw("  % 3d  tie %d -> %d\n", i, t->txi, t->rxi);
+				printw("    % 3d  tie %d -> %d\n", i, t->txi, t->rxi);
 			} else if (ctx->ifs[i]->header == 'e') {
 				cli_line *t = (cli_line *)ctx->ifs[i];
-				printw("  % 3d  ex  %d -> %d\n", i, t->txi, t->rxi);
+				printw("    % 3d  ex  %d -> %d\n", i, t->txi, t->rxi);
 			} else if (ctx->ifs[i]->header == 'm') {
-				printw("  % 3d  mul\n");
+				printw("    % 3d  mul\n");
 			} else {
-				printw("  % 3d  ??\n");
+				printw("    % 3d  ??\n");
 			}
 		}
 	}
