@@ -97,26 +97,27 @@ void cli_print_model(cli_if_mode mode)
 void cli_print_format_mode(cli_if_mode mode, const char *buffer, size_t len)
 {
 	int i;
+	int s = 0;
 
-	switch (mode) {
-	case CLI_MODE_PLAINTEXT:
-		for (i = 0; i < len; i++) {
+	for (i = 0; i < len; i++) {
+		switch (mode) {
+		case CLI_MODE_PLAINTEXT:
 			if ((isprint(buffer[i])) || (buffer[i] == '\n')) addch(buffer[i]);
-		}
-		break;
-	case CLI_MODE_Z:
-	case CLI_MODE_HEX:
-		for (i = 0; i < len; i++) {
+			break;
+		case CLI_MODE_Z:
+		case CLI_MODE_HEX:
 			printw("%02x ", buffer[i]);
-			if (((i + 1) % 24) == 0) {
-				printw("\n");
-			}
+			if (((i + 1) % 24) == 0) { printw("\n"); }
+			break;
+		case CLI_MODE_OCTAL:
+			printw("%s ", cli_format(mode, buffer[i], &s));
+			if (((i + 1) % 20) == 0) { printw("\n"); }
+			break;
+		case CLI_MODE_BINARY:
+			printw("%s ", cli_format(mode, buffer[i], &s));
+			if (((i + 1) % 8) == 0) { printw("\n"); }
+			break;
 		}
-		break;
-	case CLI_MODE_OCTAL:
-		break;
-	case CLI_MODE_BINARY:
-		break;
 	}
 
 // fflush(stdout);
@@ -180,17 +181,13 @@ void cli_cmd_add(cli_ctx *ctx)
 
 
 	cli_if *iface = (cli_if *)malloc(sizeof(cli_if));
+	memset(iface, 0, sizeof(cli_if));
+	
 	iface->header = 'i';
 	iface->active = 1;
 	iface->buffer_size = CLI_DEFAULT_BUFFER;
 	iface->rxdev.fp = stdout;
 	iface->type = CLI_TYPE_FILE;
-	iface->flags = 0;
-	iface->rx = 0;
-	iface->rx_last = 0;
-	iface->rx_count = 0;
-	iface->rx_bufferpos = 0;
-	iface->rx_size = 0;
 	memset(iface->devname, 0, CLI_DEFAULT_BUFFER);
 	memcpy(iface->devname, fname, 6);
 	
@@ -359,7 +356,8 @@ void *cli_rx_interrupt(void *pvctx)
 					(ctx->ifs[i]->active != 0) &&
 					(FD_ISSET(ctx->ifs[i]->rxdev.fd, &rxset))) {
 					// read the socket
-					ret = read(ctx->ifs[i]->rxdev.fd, rx_buffer, ctx->ifs[i]->buffer_size);
+					ret = read(ctx->ifs[i]->rxdev.fd, rx_buffer,
+						ctx->ifs[i]->buffer_size);
 
 					if (ret > 0) {
 						pthread_mutex_lock(&ctx->ui.mutex);
@@ -415,6 +413,9 @@ void cli_rx_modify(cli_if *iface, int newrx)
 	iface->rx = newrx;
 }
 
+/**
+ * Outputs msg at current pointer location and then shifts pointer accordingly.
+ */
 void cli_cmd_rx(cli_ctx *ctx)
 {
 	int pos = 2;
@@ -425,7 +426,10 @@ void cli_cmd_rx(cli_ctx *ctx)
 	static char rx_buffer[CLI_MAX_BUFFER];
 	
 	if (iface != NULL) {
-		if (iface->header == 't') { iface = ((cli_line *)iface)->rx; }
+		if ((iface->header == 't') ||
+			(iface->header == 'e')) {
+			iface = ((cli_line *)iface)->rx;
+		}
 
 		if (ctx->buffer[pos] == '?') {
 			printw("  %d / %d  %d byte(s)\n",
@@ -434,13 +438,13 @@ void cli_cmd_rx(cli_ctx *ctx)
 				iface->rx_size);
 		} else if (iface->rx_count > 0) {
 			/** try to read an argument:
-				rx	  = move to next entry
-				rx -	 = move to previous entry
-				rx .	 = move to last displayed entry
+				rx     = move to next entry
+				rx -   = move to previous entry
+				rx .   = move to last displayed entry
 				rx -x  = move x queue entries backward
 				rx +x  = move x queue entries forward
-				rx $	 = move to last queue entry
-				rx ^	 = move to first queue entry
+				rx $   = move to last queue entry
+				rx ^   = move to first queue entry
 			 */
 			while ((ctx->buffer[pos]) && (ctx->buffer[pos] == ' ')) { pos++; }
 
@@ -500,11 +504,20 @@ void cli_cmd_rx(cli_ctx *ctx)
 void cli_cmd_tx(cli_ctx *ctx)
 {
 	cli_if *iface = ctx->ifs[ctx->ifsel];
+	int ret = 0;
 
 	if (iface != NULL) {
-		if (iface->header == 't') { iface = ((cli_line *)iface)->tx; }
+		if ((iface->header == 't') ||
+			(iface->header == 'e')) {
+			iface = ((cli_line *)iface)->tx;
+		}
 
-		cli_if_tx(ctx, iface, ctx->cmd);
+		ret = cli_if_tx(ctx, iface, ctx->cmd);
+		
+		if (iface->header == 't') {
+			ctx->ifs[i]->read_size = ret;
+			cli_handle_rx(ctx, iface, ctx->cmd);
+		}
 	}
 }
 
@@ -518,7 +531,7 @@ int cli_strlen(const char *buffer, int cursize)
 	return i;
 }
 
-void cli_if_tx(cli_ctx *ctx, cli_if *iface, char *buffer)
+int cli_if_tx(cli_ctx *ctx, cli_if *iface, char *buffer)
 {
 	char *tmp;
 	int s, i;
@@ -565,6 +578,8 @@ void cli_if_tx(cli_ctx *ctx, cli_if *iface, char *buffer)
 	} else {
 			
 	}
+	
+	return trunc;
 }
 
 void cli_cmd_if(cli_ctx *ctx)
